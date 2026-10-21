@@ -3,24 +3,22 @@ import DirectorySelector from './components/DirectorySelector';
 import DataTable from './components/DataTable';
 import VariableList from './components/VariableList';
 import LongFormatTable from './components/LongFormatTable';
+import TabNavigation from './components/TabNavigation';
+import DataVisualization from './components/DataVisualization';
+import VariableCombination from './components/VariableCombination';
+import MasterTable from './components/MasterTable';
 import { parseCSV, getCSVHeaders } from './utils/csvParser';
 import { extractMonthFromFilename, getMonthNumber } from './utils/months';
-import { processFilesToVariable, convertToLongFormat } from './utils/dataProcessor';
+import { processFilesToVariable, convertToLongFormat, combineVariables } from './utils/dataProcessor';
 import { MonthData, ProcessedVariable } from './types';
 
 export default function App() {
-  // Loading state
+  const [activeTab, setActiveTab] = useState('import');
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-
-  // Variable creation flow
   const [variableName, setVariableName] = useState('');
   const [isCreatingVariable, setIsCreatingVariable] = useState(false);
-
-  // Saved variables
   const [variables, setVariables] = useState<ProcessedVariable[]>([]);
-  const [selectedVariable, setSelectedVariable] = useState<string | null>(null);
-  const [showLongFormat, setShowLongFormat] = useState(false);
 
   // Create new variable - start the flow
   const handleCreateVariable = () => {
@@ -78,9 +76,9 @@ export default function App() {
         return [...filtered, processed];
       });
 
-      setSelectedVariable(processed.name);
       setIsCreatingVariable(false);
       setVariableName('');
+      setActiveTab('visualization');
     } catch (err: any) {
       setError('Error processing files: ' + err.message);
     } finally {
@@ -92,15 +90,18 @@ export default function App() {
   const handleDeleteVariable = (name: string) => {
     if (!confirm(`Delete variable "${name}"?`)) return;
     setVariables((prev) => prev.filter((v) => v.name !== name));
-    if (selectedVariable === name) {
-      setSelectedVariable(null);
-      setShowLongFormat(false);
-    }
   };
 
-  // Get the currently selected variable's data
-  const currentVariable = variables.find((v) => v.name === selectedVariable) || null;
-  const longFormatData = currentVariable ? convertToLongFormat(currentVariable) : null;
+  // Combine variables
+  const handleCombine = (name: string, operations: Array<{ variable: string; sign: '+' | '-' }>) => {
+    try {
+      const combined = combineVariables(name, variables, operations);
+      setVariables((prev) => [...prev, combined]);
+      setActiveTab('visualization');
+    } catch (err: any) {
+      setError('Error combining variables: ' + err.message);
+    }
+  };
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-50 to-blue-50">
@@ -112,7 +113,7 @@ export default function App() {
             Data Analysis Tool
           </h1>
           <p className="text-sm text-gray-500 mt-1">
-            Create variables from monthly export data
+            Create, visualize, and combine variables from monthly export data
           </p>
         </div>
       </header>
@@ -126,106 +127,77 @@ export default function App() {
           </div>
         )}
 
-        {/* Step 1: Create Variable */}
-        <section>
-          <h2 className="text-sm font-semibold text-gray-500 uppercase tracking-wide mb-2">
-            Step 1 — Create Variable
-          </h2>
-          <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
-            <div className="flex flex-col sm:flex-row gap-3 items-end">
-              <div className="flex-1">
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Variable Name
-                </label>
-                <input
-                  type="text"
-                  value={variableName}
-                  onChange={(e) => setVariableName(e.target.value)}
-                  placeholder="e.g., energy_consumption_2024"
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                  disabled={isCreatingVariable}
-                  onKeyDown={(e) => {
-                    if (e.key === 'Enter') handleCreateVariable();
-                  }}
+        {/* Tab Navigation */}
+        <TabNavigation activeTab={activeTab} onTabChange={setActiveTab} />
+
+        {/* Tab Content */}
+        {activeTab === 'import' && (
+          <div className="space-y-4">
+            {/* Create Variable */}
+            <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
+              <h2 className="text-lg font-semibold text-gray-700 mb-3">Create New Variable</h2>
+              <div className="flex flex-col sm:flex-row gap-3 items-end">
+                <div className="flex-1">
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Variable Name
+                  </label>
+                  <input
+                    type="text"
+                    value={variableName}
+                    onChange={(e) => setVariableName(e.target.value)}
+                    placeholder="e.g., energy_consumption_2024"
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                    disabled={isCreatingVariable}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter') handleCreateVariable();
+                    }}
+                  />
+                </div>
+                <button
+                  onClick={handleCreateVariable}
+                  disabled={isCreatingVariable || !variableName.trim()}
+                  className="px-6 py-2 bg-blue-600 text-white rounded-lg font-medium hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors shadow-sm whitespace-nowrap"
+                >
+                  Create Variable
+                </button>
+              </div>
+            </div>
+
+            {/* Upload Files */}
+            {isCreatingVariable && (
+              <div>
+                <h2 className="text-sm font-semibold text-gray-500 uppercase tracking-wide mb-2">
+                  Upload Files for "{variableName}"
+                </h2>
+                <DirectorySelector
+                  onDirectorySelected={handleDirectorySelected}
+                  isLoading={isLoading}
                 />
               </div>
-              <button
-                onClick={handleCreateVariable}
-                disabled={isCreatingVariable || !variableName.trim()}
-                className="px-6 py-2 bg-blue-600 text-white rounded-lg font-medium hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors shadow-sm whitespace-nowrap"
-              >
-                Create Variable
-              </button>
-            </div>
-          </div>
-        </section>
+            )}
 
-        {/* Step 2: Upload Files */}
-        {isCreatingVariable && (
-          <section>
-            <h2 className="text-sm font-semibold text-gray-500 uppercase tracking-wide mb-2">
-              Step 2 — Upload Files for "{variableName}"
-            </h2>
-            <DirectorySelector
-              onDirectorySelected={handleDirectorySelected}
-              isLoading={isLoading}
-            />
-          </section>
+            {/* Variable List */}
+            {variables.length > 0 && (
+              <VariableList
+                variables={variables}
+                selectedVariable={null}
+                onSelect={() => {}}
+                onDelete={handleDeleteVariable}
+              />
+            )}
+          </div>
         )}
 
-        {/* Step 3: Saved Variables */}
-        {variables.length > 0 && (
-          <section>
-            <h2 className="text-sm font-semibold text-gray-500 uppercase tracking-wide mb-2">
-              Step 3 — Variables
-            </h2>
+        {activeTab === 'visualization' && (
+          <DataVisualization variables={variables} />
+        )}
 
-            <VariableList
-              variables={variables}
-              selectedVariable={selectedVariable}
-              onSelect={(name) => {
-                setSelectedVariable(name);
-                setShowLongFormat(false);
-              }}
-              onDelete={handleDeleteVariable}
-            />
+        {activeTab === 'combination' && (
+          <VariableCombination variables={variables} onCombine={handleCombine} />
+        )}
 
-            {/* Variable preview and actions */}
-            {currentVariable && (
-              <div className="mt-4 space-y-4">
-                {/* Action buttons */}
-                <div className="flex gap-3">
-                  <button
-                    onClick={() => setShowLongFormat(false)}
-                    className={`px-4 py-2 rounded-lg font-medium transition-colors ${
-                      !showLongFormat
-                        ? 'bg-blue-600 text-white'
-                        : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
-                    }`}
-                  >
-                    📊 Preview (Wide Format)
-                  </button>
-                  <button
-                    onClick={() => setShowLongFormat(true)}
-                    className={`px-4 py-2 rounded-lg font-medium transition-colors ${
-                      showLongFormat
-                        ? 'bg-blue-600 text-white'
-                        : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
-                    }`}
-                  >
-                    📋 Convert to 3 Columns
-                  </button>
-                </div>
-
-                {/* Data table */}
-                {!showLongFormat ? (
-                  <DataTable data={currentVariable} />
-                ) : (
-                  <LongFormatTable data={longFormatData} variableName={currentVariable.name} />
-                )}
-              </div>
-            )}
-          </section>
+        {activeTab === 'table' && (
+          <MasterTable variables={variables} />
         )}
       </main>
 
