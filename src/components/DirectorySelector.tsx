@@ -18,8 +18,7 @@ export default function DirectorySelector({ onDirectorySelected, isLoading }: Di
         for await (const entry of dirHandle.values()) {
           if (entry.kind === 'file') {
             const file = await entry.getFile();
-            // Match pattern: {number}_ExportData_{month}.csv
-            if (/^\d+_exportdata_\w+\.csv$/i.test(file.name)) {
+            if (file.name.toLowerCase().startsWith('exportdata_') && file.name.toLowerCase().endsWith('.csv')) {
               files.set(file.name, file);
             }
           }
@@ -49,8 +48,7 @@ export default function DirectorySelector({ onDirectorySelected, isLoading }: Di
     const files = new Map<string, File>();
     for (let i = 0; i < fileList.length; i++) {
       const file = fileList[i];
-      // Match pattern: {number}_ExportData_{month}.csv
-      if (/^\d+_exportdata_\w+\.csv$/i.test(file.name)) {
+      if (file.name.toLowerCase().startsWith('exportdata_') && file.name.toLowerCase().endsWith('.csv')) {
         files.set(file.name, file);
       }
     }
@@ -108,7 +106,7 @@ export default function DirectorySelector({ onDirectorySelected, isLoading }: Di
       </div>
 
       <p className="text-xs text-gray-400 mt-4">
-        Expected: 12 files named 01_ExportData_gennaio.csv through 12_ExportData_dicembre.csv
+        Expected: 12 files named ExportData_gennaio.csv through ExportData_dicembre.csv
       </p>
     </div>
   );
