@@ -14,8 +14,8 @@ export const ITALIAN_MONTHS: Record<string, number> = {
   dicembre: 12,
 };
 
-// Expected file pattern: ExportData_{month}.csv
-export const FILE_PATTERN = /^ExportData_(\w+)\.csv$/i;
+// Expected file pattern: {number}_ExportData_{month}.csv (e.g., 01_ExportData_gennaio.csv)
+export const FILE_PATTERN = /^\d+_ExportData_(\w+)\.csv$/i;
 
 /**
  * Extracts the Italian month name from a filename.
