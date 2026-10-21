@@ -13,12 +13,3 @@ export interface ProcessedVariable {
   data: Record<string, number[]>;  // date -> array of numeric values (one per time column)
   createdAt: Date;
 }
-
-export interface AppState {
-  loadedFiles: MonthData[];
-  selectedMonth: string | null;
-  isLoading: boolean;
-  error: string | null;
-  variables: ProcessedVariable[];
-  selectedVariable: string | null;
-}

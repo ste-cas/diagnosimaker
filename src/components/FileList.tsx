@@ -1,25 +1,11 @@
 import { MonthData } from '../types';
+import { MONTH_LABELS } from '../utils/months';
 
 interface FileListProps {
   files: MonthData[];
   selectedMonth: string | null;
   onSelectMonth: (monthName: string) => void;
 }
-
-const MONTH_LABELS: Record<string, string> = {
-  gennaio: 'January',
-  febbraio: 'February',
-  marzo: 'March',
-  aprile: 'April',
-  maggio: 'May',
-  giugno: 'June',
-  luglio: 'July',
-  agosto: 'August',
-  settembre: 'September',
-  ottobre: 'October',
-  novembre: 'November',
-  dicembre: 'December',
-};
 
 export default function FileList({ files, selectedMonth, onSelectMonth }: FileListProps) {
   // Sort by month number

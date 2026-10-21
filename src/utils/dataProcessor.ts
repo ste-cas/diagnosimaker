@@ -14,7 +14,6 @@ export function processFilesToVariable(
 
   // Determine time columns from the first file's headers (excluding the date column)
   const firstFile = sorted[0];
-  const dateColumn = firstFile.headers[0]; // First column is the date
   const timeColumns = firstFile.headers.slice(1); // Rest are time intervals
 
   // Collect all rows with their date as key

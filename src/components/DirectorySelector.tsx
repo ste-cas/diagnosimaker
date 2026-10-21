@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { isExportDataFile } from '../utils/months';
 
 interface DirectorySelectorProps {
   onDirectorySelected: (files: Map<string, File>) => void;
@@ -18,7 +19,7 @@ export default function DirectorySelector({ onDirectorySelected, isLoading }: Di
         for await (const entry of dirHandle.values()) {
           if (entry.kind === 'file') {
             const file = await entry.getFile();
-            if (file.name.toLowerCase().startsWith('exportdata_') && file.name.toLowerCase().endsWith('.csv')) {
+            if (isExportDataFile(file.name)) {
               files.set(file.name, file);
             }
           }
@@ -48,7 +49,7 @@ export default function DirectorySelector({ onDirectorySelected, isLoading }: Di
     const files = new Map<string, File>();
     for (let i = 0; i < fileList.length; i++) {
       const file = fileList[i];
-      if (file.name.toLowerCase().startsWith('exportdata_') && file.name.toLowerCase().endsWith('.csv')) {
+      if (isExportDataFile(file.name)) {
         files.set(file.name, file);
       }
     }
