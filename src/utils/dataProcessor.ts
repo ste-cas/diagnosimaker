@@ -82,3 +82,28 @@ function parseDate(dateStr: string): Date {
   const d = new Date(dateStr);
   return isNaN(d.getTime()) ? new Date(0) : d;
 }
+
+/**
+ * Converts a ProcessedVariable from wide format to long format (3 columns).
+ * Returns an array of {date, timeInterval, value} objects.
+ */
+export function convertToLongFormat(variable: ProcessedVariable): Array<{
+  date: string;
+  timeInterval: string;
+  value: number;
+}> {
+  const result: Array<{ date: string; timeInterval: string; value: number }> = [];
+
+  for (const date of variable.dates) {
+    const values = variable.data[date];
+    for (let i = 0; i < variable.timeColumns.length; i++) {
+      result.push({
+        date,
+        timeInterval: variable.timeColumns[i],
+        value: values[i],
+      });
+    }
+  }
+
+  return result;
+}

@@ -1,29 +1,45 @@
 import { useState } from 'react';
 import DirectorySelector from './components/DirectorySelector';
-import FileList from './components/FileList';
 import DataTable from './components/DataTable';
 import VariableList from './components/VariableList';
+import LongFormatTable from './components/LongFormatTable';
 import { parseCSV, getCSVHeaders } from './utils/csvParser';
 import { extractMonthFromFilename, getMonthNumber } from './utils/months';
-import { processFilesToVariable } from './utils/dataProcessor';
+import { processFilesToVariable, convertToLongFormat } from './utils/dataProcessor';
 import { MonthData, ProcessedVariable } from './types';
 
 export default function App() {
-  // Current loading state
-  const [loadedFiles, setLoadedFiles] = useState<MonthData[]>([]);
-  const [selectedMonth, setSelectedMonth] = useState<string | null>(null);
+  // Loading state
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  // Variable name input
+  // Variable creation flow
   const [variableName, setVariableName] = useState('');
+  const [isCreatingVariable, setIsCreatingVariable] = useState(false);
 
   // Saved variables
   const [variables, setVariables] = useState<ProcessedVariable[]>([]);
   const [selectedVariable, setSelectedVariable] = useState<string | null>(null);
+  const [showLongFormat, setShowLongFormat] = useState(false);
 
-  // Load files from directory
+  // Create new variable - start the flow
+  const handleCreateVariable = () => {
+    const name = variableName.trim();
+    if (!name) {
+      alert('Please enter a variable name.');
+      return;
+    }
+    if (variables.some((v) => v.name === name)) {
+      if (!confirm(`Variable "${name}" already exists. Overwrite?`)) return;
+    }
+    setIsCreatingVariable(true);
+    setError(null);
+  };
+
+  // Load files and process them into the variable
   const handleDirectorySelected = async (files: Map<string, File>) => {
+    if (!isCreatingVariable) return;
+
     setIsLoading(true);
     setError(null);
     const results: MonthData[] = [];
@@ -52,40 +68,24 @@ export default function App() {
 
       // Sort by month number
       results.sort((a, b) => a.monthNumber - b.monthNumber);
-      setLoadedFiles(results);
 
-      // Auto-select first month for preview
-      if (results.length > 0) {
-        setSelectedMonth(results[0].monthName);
-      }
+      // Process and save as variable
+      const processed = processFilesToVariable(variableName.trim(), results);
+
+      // Add or replace variable
+      setVariables((prev) => {
+        const filtered = prev.filter((v) => v.name !== processed.name);
+        return [...filtered, processed];
+      });
+
+      setSelectedVariable(processed.name);
+      setIsCreatingVariable(false);
+      setVariableName('');
     } catch (err: any) {
-      setError('Error reading files: ' + err.message);
+      setError('Error processing files: ' + err.message);
     } finally {
       setIsLoading(false);
     }
-  };
-
-  // Save current loaded files as a named variable
-  const handleSaveVariable = () => {
-    const name = variableName.trim();
-    if (!name) {
-      alert('Please enter a variable name.');
-      return;
-    }
-    if (variables.some((v) => v.name === name)) {
-      if (!confirm(`Variable "${name}" already exists. Overwrite?`)) return;
-    }
-
-    const processed = processFilesToVariable(name, loadedFiles);
-
-    // Add or replace variable
-    setVariables((prev) => {
-      const filtered = prev.filter((v) => v.name !== name);
-      return [...filtered, processed];
-    });
-
-    setSelectedVariable(name);
-    setVariableName('');
   };
 
   // Delete a variable
@@ -94,16 +94,13 @@ export default function App() {
     setVariables((prev) => prev.filter((v) => v.name !== name));
     if (selectedVariable === name) {
       setSelectedVariable(null);
+      setShowLongFormat(false);
     }
   };
 
   // Get the currently selected variable's data
   const currentVariable = variables.find((v) => v.name === selectedVariable) || null;
-
-  // Get preview data for the selected month (raw, unprocessed)
-  const previewData = selectedMonth
-    ? loadedFiles.find((f) => f.monthName === selectedMonth)
-    : null;
+  const longFormatData = currentVariable ? convertToLongFormat(currentVariable) : null;
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-50 to-blue-50">
@@ -115,7 +112,7 @@ export default function App() {
             Data Analysis Tool
           </h1>
           <p className="text-sm text-gray-500 mt-1">
-            Load monthly export data, process and save as named variables
+            Create variables from monthly export data
           </p>
         </div>
       </header>
@@ -129,105 +126,50 @@ export default function App() {
           </div>
         )}
 
-        {/* Step 1: Directory Selection */}
+        {/* Step 1: Create Variable */}
         <section>
           <h2 className="text-sm font-semibold text-gray-500 uppercase tracking-wide mb-2">
-            Step 1 — Load Files
+            Step 1 — Create Variable
           </h2>
-          <DirectorySelector
-            onDirectorySelected={handleDirectorySelected}
-            isLoading={isLoading}
-          />
+          <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
+            <div className="flex flex-col sm:flex-row gap-3 items-end">
+              <div className="flex-1">
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Variable Name
+                </label>
+                <input
+                  type="text"
+                  value={variableName}
+                  onChange={(e) => setVariableName(e.target.value)}
+                  placeholder="e.g., energy_consumption_2024"
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                  disabled={isCreatingVariable}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter') handleCreateVariable();
+                  }}
+                />
+              </div>
+              <button
+                onClick={handleCreateVariable}
+                disabled={isCreatingVariable || !variableName.trim()}
+                className="px-6 py-2 bg-blue-600 text-white rounded-lg font-medium hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors shadow-sm whitespace-nowrap"
+              >
+                Create Variable
+              </button>
+            </div>
+          </div>
         </section>
 
-        {/* Step 2: Preview loaded files */}
-        {loadedFiles.length > 0 && (
+        {/* Step 2: Upload Files */}
+        {isCreatingVariable && (
           <section>
             <h2 className="text-sm font-semibold text-gray-500 uppercase tracking-wide mb-2">
-              Step 2 — Preview & Save
+              Step 2 — Upload Files for "{variableName}"
             </h2>
-
-            <FileList
-              files={loadedFiles}
-              selectedMonth={selectedMonth}
-              onSelectMonth={setSelectedMonth}
+            <DirectorySelector
+              onDirectorySelected={handleDirectorySelected}
+              isLoading={isLoading}
             />
-
-            {/* Save as Variable */}
-            <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-4 mt-4">
-              <div className="flex flex-col sm:flex-row gap-3 items-end">
-                <div className="flex-1">
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
-                    Variable Name
-                  </label>
-                  <input
-                    type="text"
-                    value={variableName}
-                    onChange={(e) => setVariableName(e.target.value)}
-                    placeholder="e.g., energy_consumption_2024"
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                    onKeyDown={(e) => {
-                      if (e.key === 'Enter') handleSaveVariable();
-                    }}
-                  />
-                </div>
-                <button
-                  onClick={handleSaveVariable}
-                  className="px-6 py-2 bg-green-600 text-white rounded-lg font-medium hover:bg-green-700 transition-colors shadow-sm whitespace-nowrap"
-                >
-                  💾 Save as Variable
-                </button>
-              </div>
-              <p className="text-xs text-gray-400 mt-2">
-                Stacks all {loadedFiles.length} monthly files chronologically and merges duplicate dates (sum).
-              </p>
-            </div>
-
-            {/* Raw data preview for selected month */}
-            {previewData && (
-              <div className="mt-4 bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
-                <div className="px-4 py-3 bg-gray-50 border-b border-gray-200">
-                  <h3 className="font-semibold text-gray-700 text-sm">
-                    📄 Raw Preview: {previewData.filename}
-                  </h3>
-                  <p className="text-xs text-gray-400">
-                    {previewData.rows.length} rows × {previewData.headers.length} columns
-                  </p>
-                </div>
-                <div className="overflow-x-auto max-h-[300px] overflow-y-auto">
-                  <table className="w-full text-xs">
-                    <thead className="bg-gray-100 sticky top-0">
-                      <tr>
-                        {previewData.headers.slice(0, 10).map((h, i) => (
-                          <th key={i} className="px-2 py-1.5 text-left font-semibold text-gray-600 border-b whitespace-nowrap">
-                            {h}
-                          </th>
-                        ))}
-                        {previewData.headers.length > 10 && (
-                          <th className="px-2 py-1.5 text-gray-400 border-b">
-                            +{previewData.headers.length - 10} cols
-                          </th>
-                        )}
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {previewData.rows.slice(0, 20).map((row, rIdx) => (
-                        <tr key={rIdx} className="hover:bg-blue-50">
-                          {previewData.headers.slice(0, 10).map((h, cIdx) => (
-                            <td key={cIdx} className="px-2 py-1 text-gray-700 border-b border-gray-100 whitespace-nowrap">
-                              {row[h] || '-'}
-                            </td>
-                          ))}
-                          {previewData.headers.length > 10 && (
-                            <td className="px-2 py-1 text-gray-400 border-b border-gray-100">...</td>
-                          )}
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
-              </div>
-            )}
           </section>
         )}
 
@@ -241,14 +183,48 @@ export default function App() {
             <VariableList
               variables={variables}
               selectedVariable={selectedVariable}
-              onSelect={setSelectedVariable}
+              onSelect={(name) => {
+                setSelectedVariable(name);
+                setShowLongFormat(false);
+              }}
               onDelete={handleDeleteVariable}
             />
 
-            {/* Data table for selected variable */}
-            <div className="mt-4">
-              <DataTable data={currentVariable} />
-            </div>
+            {/* Variable preview and actions */}
+            {currentVariable && (
+              <div className="mt-4 space-y-4">
+                {/* Action buttons */}
+                <div className="flex gap-3">
+                  <button
+                    onClick={() => setShowLongFormat(false)}
+                    className={`px-4 py-2 rounded-lg font-medium transition-colors ${
+                      !showLongFormat
+                        ? 'bg-blue-600 text-white'
+                        : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
+                    }`}
+                  >
+                    📊 Preview (Wide Format)
+                  </button>
+                  <button
+                    onClick={() => setShowLongFormat(true)}
+                    className={`px-4 py-2 rounded-lg font-medium transition-colors ${
+                      showLongFormat
+                        ? 'bg-blue-600 text-white'
+                        : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
+                    }`}
+                  >
+                    📋 Convert to 3 Columns
+                  </button>
+                </div>
+
+                {/* Data table */}
+                {!showLongFormat ? (
+                  <DataTable data={currentVariable} />
+                ) : (
+                  <LongFormatTable data={longFormatData} variableName={currentVariable.name} />
+                )}
+              </div>
+            )}
           </section>
         )}
       </main>
