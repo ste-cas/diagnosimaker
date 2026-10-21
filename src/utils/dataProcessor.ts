@@ -14,7 +14,6 @@ export function processFilesToVariable(
 
   // Determine time columns from the first file's headers (excluding the date column)
   const firstFile = sorted[0];
-  const dateColumn = firstFile.headers[0]; // First column is the date
   const timeColumns = firstFile.headers.slice(1); // Rest are time intervals
 
   // Collect all rows with their date as key
@@ -82,4 +81,74 @@ function parseDate(dateStr: string): Date {
   // Fallback to standard parsing
   const d = new Date(dateStr);
   return isNaN(d.getTime()) ? new Date(0) : d;
+}
+
+/**
+ * Converts a ProcessedVariable from wide format to long format (3 columns).
+ * Returns an array of {date, timeInterval, value} objects.
+ */
+export function convertToLongFormat(variable: ProcessedVariable): Array<{
+  date: string;
+  timeInterval: string;
+  value: number;
+}> {
+  const result: Array<{ date: string; timeInterval: string; value: number }> = [];
+
+  for (const date of variable.dates) {
+    const values = variable.data[date];
+    for (let i = 0; i < variable.timeColumns.length; i++) {
+      result.push({
+        date,
+        timeInterval: variable.timeColumns[i],
+        value: values[i],
+      });
+    }
+  }
+
+  return result;
+}
+
+/**
+ * Combines multiple variables using addition/subtraction operations.
+ */
+export function combineVariables(
+  name: string,
+  variables: ProcessedVariable[],
+  operations: Array<{ variable: string; sign: '+' | '-' }>
+): ProcessedVariable {
+  // Use first variable as reference for dates and time columns
+  const refVar = variables.find((v) => v.name === operations[0].variable);
+  if (!refVar) throw new Error('Reference variable not found');
+
+  const data: Record<string, number[]> = {};
+  const varMap = new Map(variables.map((v) => [v.name, v]));
+
+  for (const date of refVar.dates) {
+    const numCols = refVar.timeColumns.length;
+    const result = new Array(numCols).fill(0);
+
+    for (const op of operations) {
+      const v = varMap.get(op.variable);
+      if (v && v.data[date]) {
+        const values = v.data[date];
+        for (let i = 0; i < numCols; i++) {
+          if (op.sign === '+') {
+            result[i] += values[i] || 0;
+          } else {
+            result[i] -= values[i] || 0;
+          }
+        }
+      }
+    }
+
+    data[date] = result;
+  }
+
+  return {
+    name,
+    dates: refVar.dates,
+    timeColumns: refVar.timeColumns,
+    data,
+    createdAt: new Date(),
+  };
 }
