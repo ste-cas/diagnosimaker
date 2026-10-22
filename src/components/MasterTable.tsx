@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import * as XLSX from 'xlsx';
 import { ProcessedVariable } from '../types';
 import { parseDate, getDayOfWeek, getFascia, getPkOp } from '../utils/timeUtils';
 
@@ -39,12 +40,17 @@ export default function MasterTable({ variables }: MasterTableProps) {
 
   for (const date of allDates) {
     const dateObj = parseDate(date);
-    for (const timeInterval of timeColumns) {
+    for (let timeIndex = 0; timeIndex < timeColumns.length; timeIndex++) {
+      const timeInterval = timeColumns[timeIndex];
       const values: Record<string, number> = {};
+      
       for (const v of variables) {
-        if (v.data[date]) {
-          const timeIndex = v.timeColumns.indexOf(timeInterval);
-          values[v.name] = timeIndex >= 0 ? v.data[date][timeIndex] : 0;
+        // Get the time index for this variable's time columns
+        const vTimeIndex = v.timeColumns.indexOf(timeInterval);
+        
+        // Get the value if it exists
+        if (v.data[date] && vTimeIndex >= 0 && vTimeIndex < v.data[date].length) {
+          values[v.name] = v.data[date][vTimeIndex];
         } else {
           values[v.name] = 0;
         }
@@ -66,14 +72,57 @@ export default function MasterTable({ variables }: MasterTableProps) {
 
   const dayNames = ['', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
 
+  // Export to Excel function
+  const handleExportToExcel = () => {
+    // Prepare data for Excel
+    const excelData = allRows.map((row) => {
+      const rowData: Record<string, any> = {
+        'Date': row.date,
+        'Hour': row.timeInterval.split('-')[0],
+        'Day of Week': `${row.dayOfWeek} (${dayNames[row.dayOfWeek]})`,
+        'FASCIA': row.fascia,
+        'PK/OP': row.pkOp,
+      };
+      
+      // Add variable values
+      for (const v of variables) {
+        rowData[v.name] = row.values[v.name] || 0;
+      }
+      
+      return rowData;
+    });
+
+    // Create worksheet
+    const worksheet = XLSX.utils.json_to_sheet(excelData);
+    
+    // Create workbook
+    const workbook = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(workbook, worksheet, 'Master Table');
+    
+    // Generate filename with timestamp
+    const timestamp = new Date().toISOString().split('T')[0];
+    const filename = `MasterTable_${timestamp}.xlsx`;
+    
+    // Export
+    XLSX.writeFile(workbook, filename);
+  };
+
   return (
     <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
       {/* Header */}
-      <div className="px-4 py-3 bg-gray-50 border-b border-gray-200">
-        <h3 className="font-semibold text-gray-700">Master Table</h3>
-        <p className="text-xs text-gray-400">
-          {allRows.length} rows × {5 + variables.length} columns
-        </p>
+      <div className="px-4 py-3 bg-gray-50 border-b border-gray-200 flex items-center justify-between">
+        <div>
+          <h3 className="font-semibold text-gray-700">Master Table</h3>
+          <p className="text-xs text-gray-400">
+            {allRows.length} rows × {5 + variables.length} columns
+          </p>
+        </div>
+        <button
+          onClick={handleExportToExcel}
+          className="px-4 py-2 bg-green-600 text-white rounded-lg font-medium hover:bg-green-700 transition-colors shadow-sm text-sm flex items-center gap-2"
+        >
+          📥 Export to Excel
+        </button>
       </div>
 
       {/* Table */}

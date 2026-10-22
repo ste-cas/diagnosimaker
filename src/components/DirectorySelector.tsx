@@ -62,6 +62,27 @@ export default function DirectorySelector({ onDirectorySelected, isLoading }: Di
     onDirectorySelected(files);
   };
 
+  const handleDrop = (e: React.DragEvent<HTMLDivElement>) => {
+    e.preventDefault();
+    setDragOver(false);
+
+    const files = new Map<string, File>();
+    const droppedFiles = Array.from(e.dataTransfer.files);
+
+    for (const file of droppedFiles) {
+      if (isExportDataFile(file.name)) {
+        files.set(file.name, file);
+      }
+    }
+
+    if (files.size === 0) {
+      alert('No ExportData_*.csv files found in the dropped files.');
+      return;
+    }
+
+    onDirectorySelected(files);
+  };
+
   return (
     <div
       className={`border-2 border-dashed rounded-xl p-8 text-center transition-colors ${
@@ -69,10 +90,7 @@ export default function DirectorySelector({ onDirectorySelected, isLoading }: Di
       }`}
       onDragOver={(e) => { e.preventDefault(); setDragOver(true); }}
       onDragLeave={() => setDragOver(false)}
-      onDrop={(e) => {
-        e.preventDefault();
-        setDragOver(false);
-      }}
+      onDrop={handleDrop}
     >
       <div className="text-5xl mb-4">📂</div>
       <h2 className="text-xl font-semibold text-gray-700 mb-2">

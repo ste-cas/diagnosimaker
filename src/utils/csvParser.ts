@@ -72,6 +72,12 @@ function parseLine(line: string, delimiter: string): string[] {
   }
 
   fields.push(current.trim());
+  
+  // Remove trailing empty field if line ends with delimiter
+  if (fields.length > 0 && fields[fields.length - 1] === '') {
+    fields.pop();
+  }
+  
   return fields;
 }
 
